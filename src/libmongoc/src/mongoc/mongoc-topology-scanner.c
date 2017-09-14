@@ -841,7 +841,8 @@ mongoc_topology_scanner_new(const mongoc_uri_t *uri,
                             mongoc_topology_scanner_setup_err_cb_t setup_err_cb,
                             mongoc_topology_scanner_cb_t cb,
                             void *data,
-                            int64_t connect_timeout_msec)
+                            int64_t connect_timeout_msec,
+                            int abort_fd)
 {
    mongoc_topology_scanner_t *ts = BSON_ALIGNED_ALLOC0(mongoc_topology_scanner_t);
 
@@ -859,6 +860,7 @@ mongoc_topology_scanner_new(const mongoc_uri_t *uri,
    ts->connect_timeout_msec = connect_timeout_msec;
    /* may be overridden for testing. */
    ts->dns_cache_timeout_ms = DNS_CACHE_TIMEOUT_MS;
+   ts->abort_fd = abort_fd;
    bson_mutex_init(&ts->handshake_cmd_mtx);
 #if defined(MONGOC_ENABLE_SSL_SECURE_CHANNEL)
    ts->secure_channel_cred_ptr = MONGOC_SHARED_PTR_NULL;
@@ -924,6 +926,18 @@ bool
 mongoc_topology_scanner_valid(mongoc_topology_scanner_t *ts)
 {
    return ts->nodes != NULL;
+}
+
+void
+mongoc_topology_scanner_abort(mongoc_topology_scanner_t *ts)
+{
+   mongoc_topology_scanner_node_t *ele, *tmp;
+
+   DL_FOREACH_SAFE(ts->nodes, ele, tmp)
+   {
+      if (ele->stream && ele->stream->close)
+         ele->stream->close(ele->stream);
+   }
 }
 
 void
@@ -1269,7 +1283,7 @@ _mongoc_topology_scanner_tcp_initiate(mongoc_async_cmd_t *acmd)
 
    BSON_ASSERT(acmd->dns_result);
    /* create a new non-blocking socket. */
-   if (!(sock = mongoc_socket_new(res->ai_family, res->ai_socktype, res->ai_protocol))) {
+   if (!(sock = mongoc_socket_new(res->ai_family, res->ai_socktype, res->ai_protocol, node->ts->abort_fd))) {
       return NULL;
    }
 
@@ -1385,7 +1399,7 @@ mongoc_topology_scanner_node_connect_unix(mongoc_topology_scanner_node_t *node, 
       RETURN(false);
    }
 
-   sock = mongoc_socket_new(AF_UNIX, SOCK_STREAM, 0);
+   sock = mongoc_socket_new(AF_UNIX, SOCK_STREAM, 0, node->ts->abort_fd);
 
    if (sock == NULL) {
       _mongoc_set_error(error, MONGOC_ERROR_STREAM, MONGOC_ERROR_STREAM_SOCKET, "Failed to create socket.");
