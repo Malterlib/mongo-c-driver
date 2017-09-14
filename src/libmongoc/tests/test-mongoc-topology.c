@@ -2547,7 +2547,7 @@ test_detect_nongenuine_hosts(void)
       capture_logs(true);
       mongoc_uri_t *const uri = mongoc_uri_new(cosmos_uris[i]);
       ASSERT(uri);
-      mongoc_topology_t *const topology = mongoc_topology_new(uri, true);
+      mongoc_topology_t *const topology = mongoc_topology_new(uri, true, -1);
       ASSERT(topology);
       ASSERT_CAPTURED_LOG(cosmos_uris[i],
                           MONGOC_LOG_LEVEL_INFO,
@@ -2562,7 +2562,7 @@ test_detect_nongenuine_hosts(void)
       capture_logs(true);
       mongoc_uri_t *const uri = mongoc_uri_new(docdb_uris[i]);
       ASSERT(uri);
-      mongoc_topology_t *const topology = mongoc_topology_new(uri, true);
+      mongoc_topology_t *const topology = mongoc_topology_new(uri, true, -1);
       ASSERT(topology);
       ASSERT_CAPTURED_LOG(docdb_uris[i],
                           MONGOC_LOG_LEVEL_INFO,
@@ -2577,7 +2577,7 @@ test_detect_nongenuine_hosts(void)
       capture_logs(true);
       mongoc_uri_t *const uri = mongoc_uri_new(genuine_uris[i]);
       ASSERT(uri);
-      mongoc_topology_t *const topology = mongoc_topology_new(uri, true);
+      mongoc_topology_t *const topology = mongoc_topology_new(uri, true, -1);
       ASSERT(topology);
       ASSERT_NO_CAPTURED_LOGS(genuine_uris[i]);
       mongoc_topology_destroy(topology);

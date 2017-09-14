@@ -329,7 +329,7 @@ mock_server_run(mock_server_t *server)
    size_t bind_addr_len = 0;
    int r;
 
-   ssock = mongoc_socket_new(server->bind_opts.family ? server->bind_opts.family : AF_INET, SOCK_STREAM, 0);
+   ssock = mongoc_socket_new(server->bind_opts.family ? server->bind_opts.family : AF_INET, SOCK_STREAM, 0, -1);
    if (!ssock) {
       perror("Failed to create socket.");
       return 0;

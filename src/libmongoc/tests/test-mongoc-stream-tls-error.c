@@ -46,7 +46,7 @@ static BSON_THREAD_FUN(ssl_error_server, ptr)
    iov.iov_base = &buf;
    iov.iov_len = 1;
 
-   listen_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0);
+   listen_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1);
    BSON_ASSERT(listen_sock);
 
    server_addr.sin_family = AF_INET;
@@ -128,7 +128,7 @@ static BSON_THREAD_FUN(ssl_hangup_client, ptr)
    int64_t start_time;
    bson_error_t error;
 
-   conn_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0);
+   conn_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1);
    BSON_ASSERT(conn_sock);
 
    bson_mutex_lock(&data->cond_mutex);
@@ -341,7 +341,7 @@ test_mongoc_tls_handshake_stall(void)
    do {                                                                              \
       (_field) = "badfile";                                                          \
       capture_logs(true);                                                            \
-      base = mongoc_stream_socket_new(mongoc_socket_new(AF_INET, SOCK_STREAM, 0));   \
+      base = mongoc_stream_socket_new(mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1));   \
       tls_stream = mongoc_stream_tls_new_with_hostname(base, NULL, &opt, 0);         \
                                                                                      \
       ASSERT_CAPTURED_LOG("bad TLS config file", MONGOC_LOG_LEVEL_ERROR, "badfile"); \

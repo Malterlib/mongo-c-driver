@@ -184,7 +184,8 @@ _mongoc_http_send(const mongoc_http_request_t *req,
       // Prevent passing zero as a timeout
       BSON_MAX(_mongoc_http_msec_remaining(timer), 1),
       &host_list,
-      error);
+      error,
+      -1);
    if (!stream) {
       _mongoc_set_error(error, MONGOC_ERROR_STREAM, MONGOC_ERROR_STREAM_SOCKET, "Failed to connect to: %s", req->host);
       goto fail;

@@ -48,7 +48,7 @@ static BSON_THREAD_FUN(ssl_test_server, ptr)
    iov.iov_base = buf;
    iov.iov_len = sizeof buf;
 
-   listen_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0);
+   listen_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1);
    BSON_ASSERT(listen_sock);
 
    server_addr.sin_family = AF_INET;
@@ -175,7 +175,7 @@ static BSON_THREAD_FUN(ssl_test_client, ptr)
    riov.iov_base = buf;
    riov.iov_len = sizeof buf;
 
-   conn_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0);
+   conn_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1);
    BSON_ASSERT(conn_sock);
 
    bson_mutex_lock(&data->cond_mutex);

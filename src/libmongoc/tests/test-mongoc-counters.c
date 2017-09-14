@@ -284,7 +284,7 @@ test_counters_streams(void *ctx)
    DIFF_AND_RESET(streams_ingress, >, 0);
    /* test that creating and destroying each type of stream changes the
     * streams active and not active. */
-   sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0);
+   sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1);
    DIFF_AND_RESET(streams_active, ==, 0);
    DIFF_AND_RESET(streams_disposed, ==, 0);
    stream_sock = mongoc_stream_socket_new(sock);

@@ -519,7 +519,7 @@ _get_stream(const char *endpoint, int32_t connecttimeoutms, const mongoc_ssl_opt
       goto fail;
    }
 
-   base_stream = mongoc_client_connect_tcp(connecttimeoutms, &host, error);
+   base_stream = mongoc_client_connect_tcp(connecttimeoutms, &host, error, -1);
    if (!base_stream) {
       goto fail;
    }
