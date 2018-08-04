@@ -39,7 +39,9 @@
 #include <openssl/bio.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
+#ifdef MONGOC_ENABLE_OCSP_OPENSSL
 #include <openssl/ocsp.h>
+#endif
 #include <openssl/opensslv.h>
 #include <openssl/safestack.h>
 #include <openssl/ssl.h>
@@ -48,6 +50,8 @@
 
 #include <limits.h>
 #include <string.h>
+
+#define ERR_STR (ERR_error_string(ERR_get_error(), NULL))
 
 #ifdef MONGOC_ENABLE_OCSP_OPENSSL
 #include <mongoc/mongoc-ocsp-cache-private.h>
@@ -201,8 +205,10 @@ _mongoc_openssl_check_peer_hostname(SSL *ssl, const char *host, bool allow_inval
       return true;
    }
 
+   size_t host_len = strlen(host);
+
    peer = SSL_get_peer_certificate(ssl);
-   if (peer && (X509_check_host(peer, host, 0, 0, NULL) == 1 || X509_check_ip_asc(peer, host, 0) == 1)) {
+   if (peer && (X509_check_host(peer, host, host_len, 0, NULL) == 1 || X509_check_ip_asc(peer, host, 0) == 1)) {
       X509_free(peer);
       return true;
    }
@@ -628,7 +634,6 @@ _get_must_staple(X509 *cert)
    return _mongoc_tlsfeature_has_status_request(ASN1_STRING_get0_data(ext_data), ASN1_STRING_length(ext_data));
 }
 
-#define ERR_STR (ERR_error_string(ERR_get_error(), NULL))
 #define MONGOC_OCSP_REQUEST_TIMEOUT mlib_duration(5, s)
 
 OCSP_RESPONSE *
