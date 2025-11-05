@@ -175,8 +175,6 @@ mongoc_stream_tls_openssl_bio_destroy(BIO *b)
    BIO_set_init(b, 0);
    BIO_set_flags(b, 0);
 
-   ((mongoc_stream_tls_openssl_t *)tls->ctx)->bio = NULL;
-
    return 1;
 }
 
@@ -201,7 +199,6 @@ int
 mongoc_stream_tls_openssl_bio_read(BIO *b, char *buf, int len)
 {
    mongoc_stream_tls_t *tls;
-   mongoc_stream_tls_openssl_t *openssl;
 
    BSON_ASSERT(b);
    BSON_ASSERT(buf);
@@ -223,17 +220,12 @@ mongoc_stream_tls_openssl_bio_read(BIO *b, char *buf, int len)
       return -1;
    }
 
-   openssl = (mongoc_stream_tls_openssl_t *)tls->ctx;
-
    errno = 0;
    ssize_t ret = mongoc_stream_read(tls->base_stream, buf, (size_t)len, 0, (int32_t)tls->timeout_msec);
    BIO_clear_retry_flags(b);
 
    if ((ret <= 0) && MONGOC_ERRNO_IS_AGAIN(errno)) {
-      // Set the retry flag for the BIO used by functions in mongoc-stream-tls-openssl.c.
-      BIO_set_retry_read(openssl->bio);
-
-      // Also set the retry flag for the BIO used by OpenSSL.
+      // Set the retry flag for the BIO used by OpenSSL.
       BIO_set_retry_read(b);
 
       // EAGAIN is an error (negative value), not an EOF (zero).
@@ -266,7 +258,6 @@ int
 mongoc_stream_tls_openssl_bio_write(BIO *b, const char *buf, int len)
 {
    mongoc_stream_tls_t *tls;
-   mongoc_stream_tls_openssl_t *openssl;
    mongoc_iovec_t iov;
    ENTRY;
 
@@ -282,8 +273,6 @@ mongoc_stream_tls_openssl_bio_write(BIO *b, const char *buf, int len)
    if (len < 0) {
       RETURN(-1);
    }
-
-   openssl = (mongoc_stream_tls_openssl_t *)tls->ctx;
 
    iov.iov_base = (void *)buf;
    iov.iov_len = (size_t)len;
@@ -305,12 +294,9 @@ mongoc_stream_tls_openssl_bio_write(BIO *b, const char *buf, int len)
       TRACE("Completed the %zd", ret);
    }
    if (ret <= 0 && MONGOC_ERRNO_IS_AGAIN(errno)) {
-      /* this BIO is not the same as "b", which openssl passed in to this func.
-       * set its retry flag, which we check with BIO_should_retry in
-       * mongoc-stream-tls-openssl.c
-       */
+      // Set the retry flag for the BIO used by OpenSSL.
       TRACE("%s", "Requesting a retry");
-      BIO_set_retry_write(openssl->bio);
+      BIO_set_retry_write(b);
    }
 
    BSON_ASSERT(mlib_in_range(int, ret));
