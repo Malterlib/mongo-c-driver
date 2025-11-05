@@ -88,8 +88,8 @@ _mongoc_stream_tls_openssl_destroy(mongoc_stream_t *stream)
 
    BSON_ASSERT(tls);
 
-   BIO_free_all(openssl->bio);
-   openssl->bio = NULL;
+   SSL_free(openssl->ssl);
+   openssl->ssl = NULL;
 
    BIO_meth_free(openssl->meth);
    openssl->meth = NULL;
@@ -187,12 +187,7 @@ _mongoc_stream_tls_openssl_close(mongoc_stream_t *stream)
 static int
 _mongoc_stream_tls_openssl_flush(mongoc_stream_t *stream)
 {
-   mongoc_stream_tls_t *tls = (mongoc_stream_tls_t *)stream;
-   mongoc_stream_tls_openssl_t *openssl = (mongoc_stream_tls_openssl_t *)tls->ctx;
-
-   BSON_ASSERT(openssl);
-
-   return BIO_flush(openssl->bio);
+   return 0;
 }
 
 
@@ -214,7 +209,7 @@ _mongoc_stream_tls_openssl_write(mongoc_stream_tls_t *tls, char *buf, size_t buf
    }
 
    BSON_ASSERT(mlib_in_range(int, buf_len));
-   ret = BIO_write(openssl->bio, buf, (int)buf_len);
+   ret = SSL_write(openssl->ssl, buf, (int)buf_len);
 
    if (ret <= 0) {
       return ret;
@@ -408,6 +403,7 @@ _mongoc_stream_tls_openssl_readv(
    mongoc_stream_tls_t *tls = (mongoc_stream_tls_t *)stream;
    mongoc_stream_tls_openssl_t *openssl = (mongoc_stream_tls_openssl_t *)tls->ctx;
    ssize_t ret = 0;
+   int read_error = 0;
    size_t i;
    int read_ret;
    size_t iov_pos = 0;
@@ -430,18 +426,17 @@ _mongoc_stream_tls_openssl_readv(
       iov_pos = 0;
 
       while (iov_pos < iov[i].iov_len) {
-         read_ret = BIO_read(openssl->bio, (char *)iov[i].iov_base + iov_pos, (int)(iov[i].iov_len - iov_pos));
+         read_ret = SSL_read(openssl->ssl, (char *)iov[i].iov_base + iov_pos, (int)(iov[i].iov_len - iov_pos));
 
-         /* https://www.openssl.org/docs/crypto/BIO_should_retry.html:
-          *
-          * If BIO_should_retry() returns false then the precise "error
-          * condition" depends on the BIO type that caused it and the return
-          * code of the BIO operation. For example if a call to BIO_read() on a
-          * socket BIO returns 0 and BIO_should_retry() is false then the cause
-          * will be that the connection closed.
-          */
-         if (read_ret < 0 || (read_ret == 0 && !BIO_should_retry(openssl->bio))) {
-            return -1;
+         if (read_ret <= 0) {
+            read_error = SSL_get_error(openssl->ssl, read_ret);
+
+            if (read_error != SSL_ERROR_WANT_READ && read_error != SSL_ERROR_WANT_WRITE) {
+               return -1;
+            }
+
+            // Nothing was read; retry until the timeout below expires.
+            read_ret = 0;
          }
 
          if (expire) {
@@ -561,15 +556,16 @@ _mongoc_stream_tls_openssl_handshake(mongoc_stream_t *stream, const char *host, 
 {
    mongoc_stream_tls_t *tls = (mongoc_stream_tls_t *)stream;
    mongoc_stream_tls_openssl_t *openssl = (mongoc_stream_tls_openssl_t *)tls->ctx;
-   SSL *ssl;
+   SSL *ssl = openssl->ssl;
+   int handshake_return;
+   int handshake_error;
 
    BSON_ASSERT(tls);
    BSON_ASSERT(host);
    ENTRY;
 
-   BIO_get_ssl(openssl->bio, &ssl);
-
-   if (BIO_do_handshake(openssl->bio) == 1) {
+   handshake_return = SSL_do_handshake(ssl);
+   if (handshake_return == 1) {
       *events = 0;
 
 #ifdef MONGOC_ENABLE_OCSP_OPENSSL
@@ -599,8 +595,20 @@ _mongoc_stream_tls_openssl_handshake(mongoc_stream_t *stream, const char *host, 
       RETURN(false);
    }
 
-   if (BIO_should_retry(openssl->bio)) {
-      *events = BIO_should_read(openssl->bio) ? POLLIN : POLLOUT;
+   if (handshake_return == 0) {
+      *events = POLLIN | POLLOUT;
+      RETURN(false);
+   }
+
+   handshake_error = SSL_get_error(ssl, handshake_return);
+
+   if (handshake_error == SSL_ERROR_WANT_READ) {
+      *events = POLLIN;
+      RETURN(false);
+   }
+
+   if (handshake_error == SSL_ERROR_WANT_WRITE) {
+      *events = POLLOUT;
       RETURN(false);
    }
 
@@ -677,13 +685,8 @@ static bool
 _mongoc_stream_tls_openssl_should_retry(mongoc_stream_t *stream)
 {
    mongoc_stream_tls_t *tls = (mongoc_stream_tls_t *)stream;
-   mongoc_stream_tls_openssl_t *openssl = (mongoc_stream_tls_openssl_t *)tls->ctx;
 
    ENTRY;
-
-   if (BIO_should_retry(openssl->bio)) {
-      RETURN(true);
-   }
 
    RETURN(mongoc_stream_should_retry(tls->base_stream));
 }
@@ -696,10 +699,10 @@ create_stream_with_ctx(
    mongoc_stream_tls_t *tls;
    mongoc_stream_tls_openssl_t *openssl;
    mongoc_openssl_ocsp_opt_t *ocsp_opts = NULL;
-   BIO *bio_ssl = NULL;
-   BIO *bio_mongoc_shim = NULL;
+   SSL *ssl = NULL;
+   BIO *bio_mongoc_read = NULL;
+   BIO *bio_mongoc_write = NULL;
    BIO_METHOD *meth;
-   SSL *ssl;
 
    BSON_ASSERT(base_stream);
    BSON_ASSERT(opt);
@@ -709,13 +712,17 @@ create_stream_with_ctx(
       RETURN(NULL);
    }
 
-   bio_ssl = BIO_new_ssl(ssl_ctx, client);
-   if (!bio_ssl) {
+   ssl = SSL_new(ssl_ctx);
+   if (!ssl) {
       SSL_CTX_free(ssl_ctx);
       RETURN(NULL);
    }
 
-   BIO_get_ssl(bio_ssl, &ssl);
+   if (client) {
+      SSL_set_connect_state(ssl);
+   } else {
+      SSL_set_accept_state(ssl);
+   }
 
 #if OPENSSL_VERSION_NUMBER >= 0x10002000L && !defined(LIBRESSL_VERSION_NUMBER)
    if (!opt->allow_invalid_hostname) {
@@ -735,9 +742,18 @@ create_stream_with_ctx(
 #endif
 
    meth = mongoc_stream_tls_openssl_bio_meth_new();
-   bio_mongoc_shim = BIO_new(meth);
-   if (!bio_mongoc_shim) {
-      BIO_free_all(bio_ssl);
+   bio_mongoc_read = BIO_new(meth);
+   if (!bio_mongoc_read) {
+      SSL_free(ssl);
+      BIO_meth_free(meth);
+      SSL_CTX_free(ssl_ctx);
+      RETURN(NULL);
+   }
+
+   bio_mongoc_write = BIO_new(meth);
+   if (!bio_mongoc_write) {
+      BIO_free_all(bio_mongoc_read);
+      SSL_free(ssl);
       BIO_meth_free(meth);
       SSL_CTX_free(ssl_ctx);
       RETURN(NULL);
@@ -751,7 +767,7 @@ create_stream_with_ctx(
 #endif
    }
 
-   BIO_push(bio_ssl, bio_mongoc_shim);
+   SSL_set_bio(ssl, bio_mongoc_read, bio_mongoc_write);
 
 #ifdef MONGOC_ENABLE_OCSP_OPENSSL
    if (client && !opt->weak_cert_validation && !_mongoc_ssl_opts_disable_certificate_revocation_check(opt)) {
@@ -762,7 +778,7 @@ create_stream_with_ctx(
       if (!SSL_set_tlsext_status_type(ssl, TLSEXT_STATUSTYPE_ocsp)) {
          MONGOC_ERROR("cannot enable OCSP status request extension");
          mongoc_openssl_ocsp_opt_destroy(ocsp_opts);
-         BIO_free_all(bio_ssl);
+         SSL_free(ssl);
          BIO_meth_free(meth);
          SSL_CTX_free(ssl_ctx);
          RETURN(NULL);
@@ -778,9 +794,9 @@ create_stream_with_ctx(
 #endif /* MONGOC_ENABLE_OCSP_OPENSSL */
 
    openssl = (mongoc_stream_tls_openssl_t *)bson_malloc0(sizeof *openssl);
-   openssl->bio = bio_ssl;
    openssl->meth = meth;
    openssl->ctx = ssl_ctx;
+   openssl->ssl = ssl;
    openssl->ocsp_opts = ocsp_opts;
 
    tls = (mongoc_stream_tls_t *)bson_malloc0(sizeof *tls);
@@ -801,7 +817,8 @@ create_stream_with_ctx(
    tls->ctx = (void *)openssl;
    tls->timeout_msec = -1;
    tls->base_stream = base_stream;
-   mongoc_stream_tls_openssl_bio_set_data(bio_mongoc_shim, tls);
+   mongoc_stream_tls_openssl_bio_set_data(bio_mongoc_read, tls);
+   mongoc_stream_tls_openssl_bio_set_data(bio_mongoc_write, tls);
 
    mongoc_counter_streams_active_inc();
 
