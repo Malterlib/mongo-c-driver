@@ -154,25 +154,26 @@ bson_oid_to_string (const bson_oid_t *oid,                       /* IN */
                   oid->bytes[10],
                   oid->bytes[11]);
 #else
-   uint16_t *dst;
+   uint8_t *dst;
    uint8_t *id = (uint8_t *) oid;
 
    BSON_ASSERT (oid);
    BSON_ASSERT (str);
 
-   dst = (uint16_t *) (void *) str;
-   dst[0] = gHexCharPairs[id[0]];
-   dst[1] = gHexCharPairs[id[1]];
-   dst[2] = gHexCharPairs[id[2]];
-   dst[3] = gHexCharPairs[id[3]];
-   dst[4] = gHexCharPairs[id[4]];
-   dst[5] = gHexCharPairs[id[5]];
-   dst[6] = gHexCharPairs[id[6]];
-   dst[7] = gHexCharPairs[id[7]];
-   dst[8] = gHexCharPairs[id[8]];
-   dst[9] = gHexCharPairs[id[9]];
-   dst[10] = gHexCharPairs[id[10]];
-   dst[11] = gHexCharPairs[id[11]];
+   /* str may be arbitrarily aligned, so use memcpy for the two-byte stores */
+   dst = (uint8_t *) str;
+   memcpy (dst + 0, &gHexCharPairs[id[0]], 2);
+   memcpy (dst + 2, &gHexCharPairs[id[1]], 2);
+   memcpy (dst + 4, &gHexCharPairs[id[2]], 2);
+   memcpy (dst + 6, &gHexCharPairs[id[3]], 2);
+   memcpy (dst + 8, &gHexCharPairs[id[4]], 2);
+   memcpy (dst + 10, &gHexCharPairs[id[5]], 2);
+   memcpy (dst + 12, &gHexCharPairs[id[6]], 2);
+   memcpy (dst + 14, &gHexCharPairs[id[7]], 2);
+   memcpy (dst + 16, &gHexCharPairs[id[8]], 2);
+   memcpy (dst + 18, &gHexCharPairs[id[9]], 2);
+   memcpy (dst + 20, &gHexCharPairs[id[10]], 2);
+   memcpy (dst + 22, &gHexCharPairs[id[11]], 2);
    str[24] = '\0';
 #endif
 }
