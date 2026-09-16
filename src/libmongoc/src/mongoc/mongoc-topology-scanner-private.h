@@ -38,6 +38,8 @@
 #include <mongoc/mongoc-host-list.h>
 #include <mongoc/mongoc-ssl.h>
 
+#include <mongoc/mongoc-interrupt-private.h>
+
 BSON_BEGIN_DECLS
 
 typedef void (*mongoc_topology_scanner_setup_err_cb_t) (uint32_t id, void *data, const bson_error_t *error /* IN */);
@@ -149,7 +151,7 @@ typedef struct mongoc_topology_scanner {
    mongoc_log_and_monitor_instance_t *log_and_monitor; // Not null.
    bool loadbalanced;
 
-   int abort_fd;
+   mongoc_interrupt_t *interrupt;
 } mongoc_topology_scanner_t;
 
 mongoc_topology_scanner_t *
@@ -160,16 +162,13 @@ mongoc_topology_scanner_new (const mongoc_uri_t *uri,
                              mongoc_topology_scanner_cb_t cb,
                              void *data,
                              int64_t connect_timeout_msec,
-                             int abort_fd);
+                             mongoc_interrupt_t *interrupt);
 
 void
 mongoc_topology_scanner_destroy (mongoc_topology_scanner_t *ts);
 
 bool
 mongoc_topology_scanner_valid (mongoc_topology_scanner_t *ts);
-
-void
-mongoc_topology_scanner_abort (mongoc_topology_scanner_t *ts);
 
 int
 mongoc_topology_scanner_get_negotiated_curve (mongoc_topology_scanner_t *ts);

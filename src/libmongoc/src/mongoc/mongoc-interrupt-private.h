@@ -21,6 +21,8 @@
 
 #include <mongoc/mongoc-stream.h>
 
+BSON_BEGIN_DECLS
+
 /* Creates a stream to use to interrupt calls to mongoc_stream_poll.
  *
  * The expected use is to cancel in-progress hello commands (especially for
@@ -39,6 +41,17 @@ _mongoc_interrupt_new (uint32_t timeout_ms);
 bool
 _mongoc_interrupt_interrupt (mongoc_interrupt_t *interrupt);
 
+/* Permanent cancellation, safe from another thread while the channel is alive. */
+void
+_mongoc_interrupt_cancel (mongoc_interrupt_t *interrupt);
+
+bool
+_mongoc_interrupt_is_cancelled (mongoc_interrupt_t *interrupt);
+
+/* Native read handle; immutable until destruction. */
+intptr_t
+_mongoc_interrupt_get_handle (mongoc_interrupt_t *interrupt);
+
 /* Returns a socket stream, that can be polled alongside other
  * socket streams. */
 mongoc_stream_t *
@@ -53,5 +66,7 @@ _mongoc_interrupt_flush (mongoc_interrupt_t *interrupt);
 
 void
 _mongoc_interrupt_destroy (mongoc_interrupt_t *interrupt);
+
+BSON_END_DECLS
 
 #endif /* MONGOC_STREAM_INTERRUPTIBLE_PRIVATE_H */

@@ -21,6 +21,8 @@
 
 #include <mongoc/mongoc-socket.h>
 
+#include <mongoc/mongoc-interrupt-private.h>
+
 BSON_BEGIN_DECLS
 
 struct _mongoc_socket_t {
@@ -28,8 +30,8 @@ struct _mongoc_socket_t {
    SOCKET sd;
 #else
    int sd;
-   int abort_fd;
 #endif
+   mongoc_interrupt_t *interrupt;
    int errno_;
    int domain;
    int pid;

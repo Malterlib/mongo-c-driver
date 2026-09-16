@@ -71,6 +71,21 @@ _mongoc_socket_capture_errno (mongoc_socket_t *sock) /* IN */
 }
 
 
+static bool
+_mongoc_socket_cancelled (mongoc_socket_t *sock)
+{
+   if (!_mongoc_interrupt_is_cancelled (sock->interrupt)) {
+      return false;
+   }
+#ifdef _WIN32
+   WSASetLastError (WSAECONNABORTED);
+   sock->errno_ = errno = WSAECONNABORTED;
+#else
+   sock->errno_ = errno = ECANCELED;
+#endif
+   return true;
+}
+
 /*
  *--------------------------------------------------------------------------
  *
@@ -168,28 +183,14 @@ _mongoc_socket_wait (mongoc_socket_t *sock, /* IN */
    BSON_ASSERT (sock);
    BSON_ASSERT (events);
 
-#ifdef _WIN32
-   FD_ZERO (&read_fds);
-   FD_ZERO (&write_fds);
-   FD_ZERO (&error_fds);
-
-   if (events & POLLIN) {
-      FD_SET (sock->sd, &read_fds);
-   }
-
-   if (events & POLLOUT) {
-      FD_SET (sock->sd, &write_fds);
-   }
-
-   FD_SET (sock->sd, &error_fds);
-#else
+#ifndef _WIN32
    pfd->fd = sock->sd;
    pfd->events = events | POLLERR | POLLHUP;
    pfd->revents = 0;
 
-   if (sock->abort_fd >= 0)
+   if (sock->interrupt)
    {
-      pfds[1].fd = sock->abort_fd;
+      pfds[1].fd = (int) _mongoc_interrupt_get_handle (sock->interrupt);
       pfds[1].events = POLLIN;
       pfds[1].revents = 0;
       ++fds;
@@ -198,6 +199,27 @@ _mongoc_socket_wait (mongoc_socket_t *sock, /* IN */
    now = bson_get_monotonic_time ();
 
    for (;;) {
+      if (_mongoc_socket_cancelled (sock)) {
+         RETURN (false);
+      }
+#ifdef _WIN32
+      FD_ZERO (&read_fds);
+      FD_ZERO (&write_fds);
+      FD_ZERO (&error_fds);
+
+      if (events & POLLIN) {
+         FD_SET (sock->sd, &read_fds);
+      }
+
+      if (events & POLLOUT) {
+         FD_SET (sock->sd, &write_fds);
+      }
+
+      FD_SET (sock->sd, &error_fds);
+      if (sock->interrupt) {
+         FD_SET ((SOCKET) _mongoc_interrupt_get_handle (sock->interrupt), &read_fds);
+      }
+#endif
       if (expire_at < 0) {
          timeout = 1000;
       } else if (expire_at == 0) {
@@ -233,6 +255,10 @@ _mongoc_socket_wait (mongoc_socket_t *sock, /* IN */
       ret = poll (pfds, fds, timeout);
 #endif
 
+      if (_mongoc_socket_cancelled (sock)) {
+         RETURN (false);
+      }
+
       if (ret > 0) {
 /* Something happened, so return that */
 #ifdef _WIN32
@@ -247,7 +273,7 @@ _mongoc_socket_wait (mongoc_socket_t *sock, /* IN */
          if (MONGOC_ERRNO_IS_AGAIN (errno)) {
             if (expire_at < 0)
                continue;
-               
+
             if (OPERATION_EXPIRED (expire_at)) {
                _mongoc_socket_capture_errno (sock);
                RETURN (false);
@@ -320,6 +346,15 @@ mongoc_socket_poll (mongoc_socket_poll_t *sds, /* IN */
 
    BSON_ASSERT (sds);
 
+   ret = 0;
+   for (size_t i = 0u; i < nsds; i++) {
+      sds[i].revents = _mongoc_socket_cancelled (sds[i].socket) ? POLLERR : 0;
+      ret += sds[i].revents != 0;
+   }
+   if (ret) {
+      RETURN (ret);
+   }
+
 #ifdef _WIN32
    FD_ZERO (&read_fds);
    FD_ZERO (&write_fds);
@@ -335,6 +370,9 @@ mongoc_socket_poll (mongoc_socket_poll_t *sds, /* IN */
       }
 
       FD_SET (sds[i].socket->sd, &error_fds);
+      if (sds[i].socket->interrupt) {
+         FD_SET ((SOCKET) _mongoc_interrupt_get_handle (sds[i].socket->interrupt), &read_fds);
+      }
    }
 
    timeout_tv.tv_sec = timeout / 1000;
@@ -347,8 +385,11 @@ mongoc_socket_poll (mongoc_socket_poll_t *sds, /* IN */
       return -1;
    }
 
+   ret = 0;
    for (size_t i = 0u; i < nsds; i++) {
-      if (FD_ISSET (sds[i].socket->sd, &read_fds)) {
+      if (_mongoc_socket_cancelled (sds[i].socket)) {
+         sds[i].revents = POLLERR;
+      } else if (FD_ISSET (sds[i].socket->sd, &read_fds)) {
          sds[i].revents = POLLIN;
       } else if (FD_ISSET (sds[i].socket->sd, &write_fds)) {
          sds[i].revents = POLLOUT;
@@ -357,19 +398,27 @@ mongoc_socket_poll (mongoc_socket_poll_t *sds, /* IN */
       } else {
          sds[i].revents = 0;
       }
+      ret += sds[i].revents != 0;
    }
 #else
-   pfds = (struct pollfd *) bson_malloc (sizeof (*pfds) * nsds);
+   pfds = (struct pollfd *) bson_malloc (sizeof (*pfds) * nsds * 2);
 
    for (size_t i = 0u; i < nsds; i++) {
       pfds[i].fd = sds[i].socket->sd;
       pfds[i].events = sds[i].events | POLLERR | POLLHUP;
       pfds[i].revents = 0;
+      pfds[nsds + i].fd = sds[i].socket->interrupt ? (int) _mongoc_interrupt_get_handle (sds[i].socket->interrupt) : -1;
+      pfds[nsds + i].events = POLLIN;
+      pfds[nsds + i].revents = 0;
    }
 
-   ret = poll (pfds, nsds, timeout);
-   for (size_t i = 0u; i < nsds; i++) {
-      sds[i].revents = pfds[i].revents;
+   ret = poll (pfds, nsds * 2, timeout);
+   if (ret >= 0) {
+      ret = 0;
+      for (size_t i = 0u; i < nsds; i++) {
+         sds[i].revents = _mongoc_socket_cancelled (sds[i].socket) ? POLLERR : pfds[i].revents;
+         ret += sds[i].revents != 0;
+      }
    }
 
    bson_free (pfds);
@@ -719,6 +768,7 @@ again:
 
    client = (mongoc_socket_t *) bson_malloc0 (sizeof *client);
    client->sd = sd;
+   client->interrupt = sock->interrupt;
 
    if (port) {
       if (addr.ss_family == AF_INET) {
@@ -856,6 +906,10 @@ mongoc_socket_connect (mongoc_socket_t *sock,       /* IN */
    BSON_ASSERT (addr);
    BSON_ASSERT (addrlen);
 
+   if (_mongoc_socket_cancelled (sock)) {
+      RETURN (-1);
+   }
+
    ret = connect (sock->sd, addr, addrlen);
 
 #ifdef _WIN32
@@ -961,6 +1015,7 @@ mongoc_socket_listen (mongoc_socket_t *sock, /* IN */
  * mongoc_socket_new --
  *
  *       Create a new socket and store the current process id on it.
+ *       The optional interrupt channel is borrowed and must outlive the socket.
  *
  *       Free the result with mongoc_socket_destroy().
  *
@@ -978,7 +1033,7 @@ mongoc_socket_t *
 mongoc_socket_new (int domain,   /* IN */
                    int type,     /* IN */
                    int protocol, /* IN */
-                   int abort_fd) /* IN */
+                   mongoc_interrupt_t *interrupt) /* IN */
 {
    mongoc_socket_t *sock;
 #ifdef _WIN32
@@ -1021,9 +1076,7 @@ mongoc_socket_new (int domain,   /* IN */
 
    sock = (mongoc_socket_t *) bson_malloc0 (sizeof *sock);
    sock->sd = sd;
-#ifndef _WIN32
-   sock->abort_fd = abort_fd;
-#endif
+   sock->interrupt = interrupt;
    sock->domain = domain;
 #ifdef _WIN32
    sock->pid = (int) _getpid ();
@@ -1084,6 +1137,9 @@ mongoc_socket_recv (mongoc_socket_t *sock, /* IN */
    BSON_ASSERT (buflen);
 
 again:
+   if (_mongoc_socket_cancelled (sock)) {
+      RETURN (-1);
+   }
    sock->errno_ = 0;
 #ifdef _WIN32
    ret = recv (sock->sd, (char *) buf, (int) buflen, flags);
@@ -1380,6 +1436,10 @@ mongoc_socket_sendv (mongoc_socket_t *sock,  /* IN */
    memcpy (iov, in_iov, sizeof (*iov) * iovcnt);
 
    for (;;) {
+      if (_mongoc_socket_cancelled (sock)) {
+         ret = -1;
+         GOTO (CLEANUP);
+      }
       sent = _mongoc_socket_try_sendv (sock, &iov[cur], iovcnt - cur);
       TRACE ("Sent %zd (of %zu) out of iovcnt=%zu", sent, iov[cur].iov_len, iovcnt);
 

@@ -52,6 +52,7 @@ BSON_BEGIN_DECLS
 typedef MONGOC_SOCKET_ARG3 mongoc_socklen_t;
 
 typedef struct _mongoc_socket_t mongoc_socket_t;
+struct _mongoc_interrupt_t;
 
 typedef struct {
    mongoc_socket_t *socket;
@@ -78,7 +79,7 @@ mongoc_socket_getsockname (mongoc_socket_t *sock, struct sockaddr *addr, mongoc_
 MONGOC_EXPORT (int)
 mongoc_socket_listen (mongoc_socket_t *sock, unsigned int backlog);
 MONGOC_EXPORT (mongoc_socket_t *)
-mongoc_socket_new (int domain, int type, int protocol, int abort_fd) BSON_GNUC_WARN_UNUSED_RESULT;
+mongoc_socket_new (int domain, int type, int protocol, struct _mongoc_interrupt_t *interrupt) BSON_GNUC_WARN_UNUSED_RESULT;
 MONGOC_EXPORT (ssize_t)
 mongoc_socket_recv (mongoc_socket_t *sock, void *buf, size_t buflen, int flags, int64_t expire_at);
 MONGOC_EXPORT (int)

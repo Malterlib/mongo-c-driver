@@ -134,10 +134,6 @@ mongoc_client_pool_new (const mongoc_uri_t *uri)
    return pool;
 }
 
-#ifndef _WIN32
-void alloc_abort_fd(int *abort_fd, int *abort_write_fd);
-#endif
-
 // Defined in mongoc-init.c.
 extern bool
 mongoc_get_init_called (void);
@@ -176,14 +172,7 @@ mongoc_client_pool_new_with_error (const mongoc_uri_t *uri, bson_error_t *error)
    }
 #endif
 
-   int abort_fd = -1;
-   int abort_write_fd = -1;
-   (void)abort_write_fd;
-#ifndef _WIN32
-   alloc_abort_fd(&abort_fd, &abort_write_fd);
-#endif
-
-   topology = mongoc_topology_new (uri, false, abort_fd);
+   topology = mongoc_topology_new (uri, false, NULL);
 
    if (!topology->valid) {
       if (error) {
@@ -191,13 +180,6 @@ mongoc_client_pool_new_with_error (const mongoc_uri_t *uri, bson_error_t *error)
       }
 
       mongoc_topology_destroy (topology);
-
-#ifndef _WIN32
-      if (abort_fd >= 0)
-         close(abort_fd);
-      if (abort_write_fd >= 0)
-         close(abort_write_fd);
-#endif
 
       RETURN (NULL);
    }
@@ -347,7 +329,7 @@ mongoc_client_pool_pop (mongoc_client_pool_t *pool)
 again:
    if (!(client = (mongoc_client_t *) _mongoc_queue_pop_head (&pool->queue))) {
       if (pool->size < pool->max_pool_size) {
-         client = _mongoc_client_new_from_topology (pool->topology, -1, -1);
+         client = _mongoc_client_new_from_topology (pool->topology, NULL);
          BSON_ASSERT (client);
          _initialize_new_client (pool, client);
          pool->size++;
@@ -390,7 +372,7 @@ mongoc_client_pool_try_pop (mongoc_client_pool_t *pool)
 
    if (!(client = (mongoc_client_t *) _mongoc_queue_pop_head (&pool->queue))) {
       if (pool->size < pool->max_pool_size) {
-         client = _mongoc_client_new_from_topology (pool->topology, -1, -1);
+         client = _mongoc_client_new_from_topology (pool->topology, NULL);
          BSON_ASSERT (client);
          _initialize_new_client (pool, client);
          pool->size++;

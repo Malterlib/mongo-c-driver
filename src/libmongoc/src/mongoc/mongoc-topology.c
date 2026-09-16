@@ -26,6 +26,7 @@
 #include <mongoc/mongoc-topology-background-monitoring-private.h>
 #include <mongoc/mongoc-topology-description-apm-private.h>
 #include <mongoc/mongoc-topology-private.h>
+#include <mongoc/mongoc-interrupt-private.h>
 #include <mongoc/mongoc-trace-private.h>
 #include <mongoc/mongoc-uri-private.h>
 #include <mongoc/mongoc-util-private.h>
@@ -367,7 +368,7 @@ _detect_nongenuine_hosts (const mongoc_uri_t *uri)
  *-------------------------------------------------------------------------
  */
 mongoc_topology_t *
-mongoc_topology_new (const mongoc_uri_t *uri, bool single_threaded, int abort_fd)
+mongoc_topology_new (const mongoc_uri_t *uri, bool single_threaded, mongoc_interrupt_t *interrupt)
 {
    mongoc_topology_t *topology;
    mongoc_topology_description_type_t init_type;
@@ -464,8 +465,8 @@ mongoc_topology_new (const mongoc_uri_t *uri, bool single_threaded, int abort_fd
                                                     _mongoc_topology_scanner_cb,
                                                     topology,
                                                     topology->connect_timeout_msec,
-                                                    abort_fd);
-   topology->abort_fd = abort_fd;
+                                                    interrupt);
+   topology->interrupt = interrupt;
 
    bson_mutex_init (&topology->tpld_modification_mtx);
    mongoc_cond_init (&topology->cond_client);
@@ -876,31 +877,6 @@ done:
    _mongoc_host_list_destroy_all (rr_data.hosts);
 }
 
-/*
- *-------------------------------------------------------------------------
- *
- * mongoc_topology_destroy --
- *
- *       Abort streams in topology
- *
- * Returns:
- *       None.
- *
- * Side effects:
- *       Streams will be closed
- *
- *-------------------------------------------------------------------------
- */
-void
-mongoc_topology_abort (mongoc_topology_t *topology)
-{
-   if (!topology) {
-      return;
-   }
-
-   mongoc_topology_scanner_abort (topology->scanner);
-}
-
 int
 mongoc_topology_get_negotiated_curve (mongoc_topology_t *topology)
 {
@@ -1187,6 +1163,12 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
                           int64 (log_context->has_operation_id ? "operationId" : NULL, log_context->operation_id),
                           topology_as_description_json ("topologyDescription", topology));
 
+   if (_mongoc_interrupt_is_cancelled (topology->interrupt)) {
+      _mongoc_server_selection_error ("Client operation cancelled", &scanner_error, error);
+      server_id = 0;
+      goto done;
+   }
+
    if (!mongoc_topology_scanner_valid (ts)) {
       if (error) {
          mongoc_topology_scanner_get_error (ts, error);
@@ -1225,6 +1207,11 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
 
       /* until we find a server or time out */
       for (;;) {
+         if (_mongoc_interrupt_is_cancelled (topology->interrupt)) {
+            _mongoc_server_selection_error ("Client operation cancelled", &scanner_error, error);
+            server_id = 0;
+            goto done;
+         }
          if (topology->stale) {
             /* how soon are we allowed to scan? */
             scan_ready = topology->last_scan + topology->min_heartbeat_frequency_msec * 1000;

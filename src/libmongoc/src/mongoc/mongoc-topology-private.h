@@ -20,6 +20,7 @@
 #define MONGOC_TOPOLOGY_PRIVATE_H
 
 #include <common-atomic-private.h>
+#include <mongoc/mongoc-interrupt-private.h>
 #include <mongoc/mongoc-client-session-private.h>
 #include <mongoc/mongoc-crypt-private.h>
 #include <mongoc/mongoc-error-private.h>
@@ -171,7 +172,7 @@ typedef struct _mongoc_topology_t {
     * tpld_modification_mtx as well.
     */
    mongoc_cond_t cond_client;
-   int abort_fd;
+   mongoc_interrupt_t *interrupt;
    bool single_threaded;
    bool stale;
 
@@ -236,7 +237,7 @@ typedef struct _mongoc_topology_t {
 } mongoc_topology_t;
 
 mongoc_topology_t *
-mongoc_topology_new (const mongoc_uri_t *uri, bool single_threaded, int abort_fd);
+mongoc_topology_new (const mongoc_uri_t *uri, bool single_threaded, mongoc_interrupt_t *interrupt);
 
 void
 mongoc_topology_set_structured_log_opts (mongoc_topology_t *topology, const mongoc_structured_log_opts_t *opts);
@@ -247,9 +248,6 @@ mongoc_topology_destroy (mongoc_topology_t *topology);
 
 void
 mongoc_topology_reconcile (const mongoc_topology_t *topology, mongoc_topology_description_t *td);
-
-void
-mongoc_topology_abort (mongoc_topology_t *topology);
 
 int
 mongoc_topology_get_negotiated_curve (mongoc_topology_t *topology);
