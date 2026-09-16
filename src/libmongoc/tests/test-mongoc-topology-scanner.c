@@ -67,7 +67,7 @@ _test_topology_scanner(bool with_ssl)
    mongoc_log_and_monitor_instance_t log_and_monitor;
    mongoc_log_and_monitor_instance_init(&log_and_monitor);
    mongoc_topology_scanner_t *topology_scanner = mongoc_topology_scanner_new(
-      NULL, &topology_id, &log_and_monitor, NULL, &test_topology_scanner_helper, &finished, TIMEOUT, -1);
+      NULL, &topology_id, &log_and_monitor, NULL, &test_topology_scanner_helper, &finished, TIMEOUT, NULL);
 
 #ifdef MONGOC_ENABLE_SSL
    if (with_ssl) {
@@ -480,7 +480,7 @@ test_topology_scanner_dns_testcase(dns_testcase_t *testcase)
 
    server = _mock_server_listening_on(testcase->server_bind_to);
    ts = mongoc_topology_scanner_new(
-      NULL, &topology_id, &log_and_monitor, NULL, &_test_topology_scanner_dns_helper, testcase, TIMEOUT, -1);
+      NULL, &topology_id, &log_and_monitor, NULL, &_test_topology_scanner_dns_helper, testcase, TIMEOUT, NULL);
    host_str = bson_strdup_printf("%s:%d", testcase->client_hostname, mock_server_get_port(server));
    BSON_ASSERT(_mongoc_host_list_from_string(&host, host_str));
    /* we should only have one host. */
@@ -592,7 +592,7 @@ test_topology_retired_fails_to_initiate(void)
    mongoc_log_and_monitor_instance_init(&log_and_monitor);
 
    scanner = mongoc_topology_scanner_new(
-      NULL, &topology_id, &log_and_monitor, NULL, &_retired_fails_to_initiate_cb, NULL, TIMEOUT, -1);
+      NULL, &topology_id, &log_and_monitor, NULL, &_retired_fails_to_initiate_cb, NULL, TIMEOUT, NULL);
 
    BSON_ASSERT(_mongoc_host_list_from_string(&host_list, mock_server_get_host_and_port(server)));
 

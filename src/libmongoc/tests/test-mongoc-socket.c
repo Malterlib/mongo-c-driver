@@ -44,7 +44,7 @@ static BSON_THREAD_FUN(socket_test_server, data_)
    iov.iov_base = buf;
    iov.iov_len = sizeof(buf);
 
-   listen_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1);
+   listen_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, NULL);
    BSON_ASSERT(listen_sock);
 
    server_addr.sin_family = AF_INET;
@@ -114,7 +114,7 @@ static BSON_THREAD_FUN(socket_test_client, data_)
    iov.iov_base = buf;
    iov.iov_len = sizeof(buf);
 
-   conn_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1);
+   conn_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, NULL);
    BSON_ASSERT(conn_sock);
 
    bson_mutex_lock(&data->cond_mutex);
@@ -187,7 +187,7 @@ static BSON_THREAD_FUN(sendv_test_server, data_)
    iov.iov_base = buf;
    iov.iov_len = gFourMB;
 
-   listen_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1);
+   listen_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, NULL);
    BSON_ASSERT(listen_sock);
 
    server_addr.sin_family = AF_INET;
@@ -285,7 +285,7 @@ static BSON_THREAD_FUN(sendv_test_client, data_)
    iov.iov_base = buf;
    iov.iov_len = gFourMB;
 
-   conn_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1);
+   conn_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, NULL);
    BSON_ASSERT(conn_sock);
 
    bson_mutex_lock(&data->cond_mutex);

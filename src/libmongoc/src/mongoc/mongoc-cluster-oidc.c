@@ -151,7 +151,8 @@ _mongoc_cluster_auth_node_oidc(mongoc_cluster_t *cluster,
    char *access_token = NULL;
 
    bool is_cache = false;
-   access_token = mongoc_oidc_cache_get_token(cluster->client->topology->oidc_cache, &is_cache, error);
+   access_token = mongoc_oidc_cache_get_token_interruptible(
+      cluster->client->topology->oidc_cache, cluster->client->interrupt, &is_cache, error);
    if (!access_token) {
       goto done;
    }
@@ -165,7 +166,8 @@ _mongoc_cluster_auth_node_oidc(mongoc_cluster_t *cluster,
          // Retry getting the access token once:
          mongoc_oidc_cache_invalidate_token(cluster->client->topology->oidc_cache, access_token);
          bson_free(access_token);
-         access_token = mongoc_oidc_cache_get_token(cluster->client->topology->oidc_cache, &is_cache, error);
+         access_token = mongoc_oidc_cache_get_token_interruptible(
+            cluster->client->topology->oidc_cache, cluster->client->interrupt, &is_cache, error);
       } else {
          ok = true;
          goto done;

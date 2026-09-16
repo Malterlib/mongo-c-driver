@@ -144,6 +144,7 @@ mcd_azure_access_token_from_imds(mcd_azure_access_token *const out,
                                  const char *opt_extra_headers,
                                  mlib_timer opt_timer,
                                  const char *opt_client_id,
+                                 mongoc_interrupt_t *opt_interrupt,
                                  bson_error_t *error);
 
 #endif // MCD_AZURE_H_INCLUDED

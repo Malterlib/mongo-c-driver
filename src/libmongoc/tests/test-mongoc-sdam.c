@@ -928,7 +928,7 @@ static BSON_THREAD_FUN(prose_heartbeat_thread, generic_context)
 {
    prose_heartbeat_context_t *context = (prose_heartbeat_context_t *)generic_context;
 
-   mongoc_socket_t *listen_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1);
+   mongoc_socket_t *listen_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, NULL);
    BSON_ASSERT(listen_sock);
 
    struct sockaddr_in server_addr = {

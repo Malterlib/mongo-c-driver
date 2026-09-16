@@ -146,5 +146,6 @@ bool
 gcp_identity_token_from_gcp_server(gcp_service_account_token *out,
                                    const char *audience,
                                    mlib_timer opt_timer,
+                                   mongoc_interrupt_t *opt_interrupt,
                                    bson_error_t *error);
 #endif /* SERVICE_GCP_H */

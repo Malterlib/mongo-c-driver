@@ -254,7 +254,7 @@ _testcase_setup(he_testcase_t *testcase)
    mcommon_oid_set_zero(&topology_id);
    mongoc_log_and_monitor_instance_init(&testcase->state.log_and_monitor);
    testcase->state.ts = mongoc_topology_scanner_new(
-      NULL, &topology_id, &testcase->state.log_and_monitor, NULL, &_test_scanner_callback, testcase, TIMEOUT, -1);
+      NULL, &topology_id, &testcase->state.log_and_monitor, NULL, &_test_scanner_callback, testcase, TIMEOUT, NULL);
 
    testcase->state.mock_server = mock_server;
 

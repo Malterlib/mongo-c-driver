@@ -28,7 +28,7 @@ get_localhost_stream(uint16_t port)
    int r;
    struct sockaddr_in server_addr = {0};
    mongoc_socket_t *conn_sock;
-   conn_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, -1);
+   conn_sock = mongoc_socket_new(AF_INET, SOCK_STREAM, 0, NULL);
    BSON_ASSERT(conn_sock);
 
    server_addr.sin_family = AF_INET;

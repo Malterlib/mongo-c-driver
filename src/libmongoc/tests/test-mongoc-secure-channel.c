@@ -25,7 +25,7 @@ connect_with_secure_channel_cred(const mongoc_ssl_opt_t *ssl_opt, mongoc_shared_
    if (!_mongoc_host_list_from_string_with_err(&host, "localhost:27017", error)) {
       return false;
    }
-   mongoc_stream_t *tcp_stream = mongoc_client_connect_tcp(connect_timout_ms, &host, error, -1);
+   mongoc_stream_t *tcp_stream = mongoc_client_connect_tcp(connect_timout_ms, &host, error, NULL);
    if (!tcp_stream) {
       return false;
    }

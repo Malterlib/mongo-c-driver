@@ -156,6 +156,18 @@ _mongoc_http_send(const mongoc_http_request_t *req,
                   mongoc_http_response_t *res,
                   bson_error_t *error)
 {
+   return _mongoc_http_send_interruptible(req, timer, use_tls, ssl_opts, NULL, res, error);
+}
+
+bool
+_mongoc_http_send_interruptible(const mongoc_http_request_t *req,
+                                mlib_timer timer,
+                                bool use_tls,
+                                mongoc_ssl_opt_t *ssl_opts,
+                                mongoc_interrupt_t *interrupt,
+                                mongoc_http_response_t *res,
+                                bson_error_t *error)
+{
    mongoc_stream_t *stream = NULL;
    mongoc_host_list_t host_list;
    bool ret = false;
@@ -185,7 +197,7 @@ _mongoc_http_send(const mongoc_http_request_t *req,
       BSON_MAX(_mongoc_http_msec_remaining(timer), 1),
       &host_list,
       error,
-      -1);
+      interrupt);
    if (!stream) {
       _mongoc_set_error(error, MONGOC_ERROR_STREAM, MONGOC_ERROR_STREAM_SOCKET, "Failed to connect to: %s", req->host);
       goto fail;
@@ -263,6 +275,12 @@ _mongoc_http_send(const mongoc_http_request_t *req,
 
    if (mongoc_stream_timed_out(stream)) {
       _mongoc_set_error(error, MONGOC_ERROR_STREAM, MONGOC_ERROR_STREAM_SOCKET, "Timeout reading from stream");
+      goto fail;
+   }
+
+   // A cancelled read ends the loop as the end of the response does, so what was read can be incomplete
+   if (_mongoc_interrupt_is_cancelled(interrupt)) {
+      _mongoc_set_error(error, MONGOC_ERROR_STREAM, MONGOC_ERROR_STREAM_SOCKET, "Client operation cancelled");
       goto fail;
    }
 

@@ -47,7 +47,7 @@ connect_with_tls (const char *host, const char *port, mongoc_ssl_opt_t *ssl_opt)
 
    for (rp = result; rp; rp = rp->ai_next) {
       if (!(sock = mongoc_socket_new (
-               rp->ai_family, rp->ai_socktype, rp->ai_protocol, -1))) {
+               rp->ai_family, rp->ai_socktype, rp->ai_protocol, NULL))) {
          continue;
       }
 

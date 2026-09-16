@@ -947,7 +947,7 @@ _server_monitor_setup_connection(mongoc_server_monitor_t *server_monitor,
                                                      openssl_ctx_void,
                                                      secure_channel_cred_ptr,
                                                      error,
-                                                     -1);
+                                                     NULL);
    }
 
    if (!server_monitor->stream) {

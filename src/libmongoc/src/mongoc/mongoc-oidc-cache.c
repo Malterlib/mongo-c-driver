@@ -195,6 +195,15 @@ mongoc_oidc_cache_set_cached_token(mongoc_oidc_cache_t *cache, const char *token
 char *
 mongoc_oidc_cache_get_token(mongoc_oidc_cache_t *cache, bool *found_in_cache, bson_error_t *error)
 {
+   return mongoc_oidc_cache_get_token_interruptible(cache, NULL, found_in_cache, error);
+}
+
+char *
+mongoc_oidc_cache_get_token_interruptible(mongoc_oidc_cache_t *cache,
+                                          mongoc_interrupt_t *interrupt,
+                                          bool *found_in_cache,
+                                          bson_error_t *error)
+{
    BSON_ASSERT_PARAM(cache);
    BSON_ASSERT_PARAM(found_in_cache);
    BSON_OPTIONAL_PARAM(error);
@@ -233,6 +242,7 @@ mongoc_oidc_cache_get_token(mongoc_oidc_cache_t *cache, bool *found_in_cache, bs
    mongoc_oidc_callback_params_set_timeout(
       params, mlib_microseconds_count(mlib_time_add(mlib_now(), mlib_duration(60, s)).time_since_monotonic_start));
    mongoc_oidc_callback_params_set_username(params, cache->username);
+   mongoc_oidc_callback_params_set_interrupt(params, interrupt);
 
    // Obtain write-lock:
    {

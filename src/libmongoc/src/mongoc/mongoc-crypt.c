@@ -519,7 +519,7 @@ _get_stream(const char *endpoint, int32_t connecttimeoutms, const mongoc_ssl_opt
       goto fail;
    }
 
-   base_stream = mongoc_client_connect_tcp(connecttimeoutms, &host, error, -1);
+   base_stream = mongoc_client_connect_tcp(connecttimeoutms, &host, error, NULL);
    if (!base_stream) {
       goto fail;
    }
@@ -822,6 +822,7 @@ _request_new_azure_token(mcd_azure_access_token *out, bson_error_t *error)
                                            NULL,            // No extra headers
                                            (mlib_timer){0}, // Default timer.
                                            NULL,            // No client ID.
+                                           NULL,            // No cancellation.
                                            error);
 }
 

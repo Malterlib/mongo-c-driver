@@ -17,6 +17,7 @@
 #include <mongoc/mongoc-prelude.h>
 
 #include <common-string-private.h>
+#include <mongoc/mongoc-interrupt-private.h>
 
 #include <mongoc/mongoc-ssl.h>
 #include <mongoc/mongoc.h>
@@ -112,5 +113,15 @@ _mongoc_http_send(mongoc_http_request_t const *req,
                   mongoc_ssl_opt_t *ssl_opts,
                   mongoc_http_response_t *res,
                   bson_error_t *error);
+
+// _mongoc_http_send, with the connection cancelled by @interrupt (optional)
+bool
+_mongoc_http_send_interruptible(mongoc_http_request_t const *req,
+                                mlib_timer timer,
+                                bool use_tls,
+                                mongoc_ssl_opt_t *ssl_opts,
+                                mongoc_interrupt_t *interrupt,
+                                mongoc_http_response_t *res,
+                                bson_error_t *error);
 
 #endif /* MONGOC_HTTP_PRIVATE */

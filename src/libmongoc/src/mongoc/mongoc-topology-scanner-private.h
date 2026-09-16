@@ -31,6 +31,7 @@
 #include <mongoc/mongoc-async-private.h>
 #include <mongoc/mongoc-crypto-private.h>
 #include <mongoc/mongoc-handshake-private.h>
+#include <mongoc/mongoc-interrupt-private.h>
 #include <mongoc/mongoc-scram-private.h>
 #include <mongoc/mongoc-server-description-private.h>
 #include <mongoc/mongoc-shared-private.h>
@@ -152,7 +153,7 @@ typedef struct mongoc_topology_scanner {
    // oidc_cache is used to create the OIDC speculative auth command.
    mongoc_oidc_cache_t *oidc_cache;
 
-   int abort_fd;
+   mongoc_interrupt_t *interrupt;
 } mongoc_topology_scanner_t;
 
 mongoc_topology_scanner_t *
@@ -163,16 +164,13 @@ mongoc_topology_scanner_new(const mongoc_uri_t *uri,
                             mongoc_topology_scanner_cb_t cb,
                             void *data,
                             int64_t connect_timeout_msec,
-                            int abort_fd);
+                            mongoc_interrupt_t *interrupt);
 
 void
 mongoc_topology_scanner_destroy(mongoc_topology_scanner_t *ts);
 
 bool
 mongoc_topology_scanner_valid(mongoc_topology_scanner_t *ts);
-
-void
-mongoc_topology_scanner_abort(mongoc_topology_scanner_t *ts);
 
 int
 mongoc_topology_scanner_get_negotiated_curve(mongoc_topology_scanner_t *ts);

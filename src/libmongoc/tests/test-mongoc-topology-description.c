@@ -115,7 +115,7 @@ test_get_servers(void)
    size_t n;
 
    uri = mongoc_uri_new("mongodb://a,b,c");
-   topology = mongoc_topology_new(uri, true /* single-threaded */, -1);
+   topology = mongoc_topology_new(uri, true /* single-threaded */, NULL);
    tdmod = mc_tpld_modify_begin(topology);
 
    mongoc_log_and_monitor_instance_t log_and_monitor;
@@ -183,7 +183,7 @@ test_topology_version_equal(void)
    mc_tpld_modification tdmod;
 
    uri = mongoc_uri_new("mongodb://host");
-   topology = mongoc_topology_new(uri, true /* single-threaded */, -1);
+   topology = mongoc_topology_new(uri, true /* single-threaded */, NULL);
    tdmod = mc_tpld_modify_begin(topology);
 
    callbacks = mongoc_apm_callbacks_new();
@@ -232,7 +232,7 @@ test_topology_description_new_copy(void)
    size_t n;
 
    uri = mongoc_uri_new("mongodb://a,b,c");
-   topology = mongoc_topology_new(uri, true /* single-threaded */, -1);
+   topology = mongoc_topology_new(uri, true /* single-threaded */, NULL);
    tdmod = mc_tpld_modify_begin(topology);
 
    mongoc_log_and_monitor_instance_t log_and_monitor;
@@ -292,7 +292,7 @@ test_topology_pool_clear(void)
    mongoc_uri_t *uri;
 
    uri = mongoc_uri_new("mongodb://localhost:27017,localhost:27018");
-   topology = mongoc_topology_new(uri, true, -1);
+   topology = mongoc_topology_new(uri, true, NULL);
    tdmod = mc_tpld_modify_begin(topology);
 
    ASSERT_CMPUINT32(0, ==, _mongoc_topology_get_connection_pool_generation(tdmod.new_td, 1, &kZeroObjectId));
@@ -316,7 +316,7 @@ test_topology_pool_clear_by_serviceid(void)
    mc_tpld_modification tdmod;
 
    uri = mongoc_uri_new("mongodb://localhost:27017");
-   topology = mongoc_topology_new(uri, true, -1);
+   topology = mongoc_topology_new(uri, true, NULL);
 
    bson_oid_init_from_string(&oid_a, "AAAAAAAAAAAAAAAAAAAAAAAA");
    bson_oid_init_from_string(&oid_b, "BBBBBBBBBBBBBBBBBBBBBBBB");

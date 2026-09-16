@@ -3783,6 +3783,7 @@ mongoc_cluster_run_retryable_write(mongoc_cluster_t *cluster,
       .initial_server_description = cmd->server_stream->sd,
       .max_adaptive_retries = client->max_adaptive_retries,
       .enable_overload_retargeting = client->enable_overload_retargeting,
+      .interrupt = client->interrupt,
    };
 
    bool ret = false;
