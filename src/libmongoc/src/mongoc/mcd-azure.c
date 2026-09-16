@@ -195,6 +195,7 @@ mcd_azure_access_token_from_imds(mcd_azure_access_token *const out,
                                  const char *opt_extra_headers,
                                  mlib_timer opt_timer,
                                  const char *opt_client_id,
+                                 mongoc_interrupt_t *opt_interrupt,
                                  bson_error_t *error)
 {
    BSON_ASSERT_PARAM(token_resource);
@@ -218,7 +219,7 @@ mcd_azure_access_token_from_imds(mcd_azure_access_token *const out,
                          ? opt_timer
                          : mlib_expires_after(mlib_duration(3, s)); // Default 3 second timeout.
 
-   if (!_mongoc_http_send(&req.req, timer, false, NULL, &resp, error)) {
+   if (!_mongoc_http_send_interruptible(&req.req, timer, false, NULL, opt_interrupt, &resp, error)) {
       goto fail;
    }
 

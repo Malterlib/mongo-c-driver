@@ -822,6 +822,7 @@ _request_new_azure_token(mcd_azure_access_token *out, bson_error_t *error)
                                            NULL,            // No extra headers
                                            (mlib_timer){0}, // Default timer.
                                            NULL,            // No client ID.
+                                           NULL,            // No cancellation.
                                            error);
 }
 

@@ -19,6 +19,8 @@
 #ifndef MONGOC_OIDC_CALLBACK_PRIVATE_H
 #define MONGOC_OIDC_CALLBACK_PRIVATE_H
 
+#include <mongoc/mongoc-interrupt-private.h>
+
 #include <mongoc/mongoc-oidc-callback.h>
 
 //
@@ -59,5 +61,12 @@ mongoc_oidc_callback_params_set_cancelled_with_timeout(mongoc_oidc_callback_para
 
 mongoc_oidc_callback_t *
 mongoc_oidc_callback_copy(const mongoc_oidc_callback_t *callback);
+
+// The cancellation channel of the client that requests the token, for the built-in environment callbacks
+void
+mongoc_oidc_callback_params_set_interrupt(mongoc_oidc_callback_params_t *params, mongoc_interrupt_t *interrupt);
+
+mongoc_interrupt_t *
+mongoc_oidc_callback_params_get_interrupt(const mongoc_oidc_callback_params_t *params);
 
 #endif // MONGOC_OIDC_CALLBACK_PRIVATE_H

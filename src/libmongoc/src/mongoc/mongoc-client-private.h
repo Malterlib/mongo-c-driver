@@ -40,6 +40,7 @@
 #endif
 
 #include <mongoc/mongoc-crypt-private.h>
+#include <mongoc/mongoc-interrupt-private.h>
 #include <mongoc/mongoc-shared-private.h>
 #include <mongoc/mongoc-topology-private.h>
 #include <mongoc/mongoc-uri-private.h>
@@ -126,8 +127,7 @@ struct _mongoc_client_t {
    mongoc_set_t *client_sessions;
    unsigned int csid_rand_seed;
 
-   int abort_fd;
-   int abort_write_fd;
+   mongoc_interrupt_t *interrupt;
 
    uint32_t generation;
 
@@ -163,7 +163,7 @@ _mongoc_client_get_rr(const char *hostname,
                       bson_error_t *error);
 
 mongoc_client_t *
-_mongoc_client_new_from_topology(mongoc_topology_t *topology, int abort_fd, int abort_fd_write);
+_mongoc_client_new_from_topology(mongoc_topology_t *topology, mongoc_interrupt_t *interrupt);
 
 mongoc_stream_t *
 mongoc_client_default_stream_initiator(const mongoc_uri_t *uri,
@@ -215,7 +215,10 @@ void
 _mongoc_client_end_sessions(mongoc_client_t *client);
 
 mongoc_stream_t *
-mongoc_client_connect_tcp(int32_t connecttimeoutms, const mongoc_host_list_t *host, bson_error_t *error, int abort_fd);
+mongoc_client_connect_tcp(int32_t connecttimeoutms,
+                          const mongoc_host_list_t *host,
+                          bson_error_t *error,
+                          mongoc_interrupt_t *interrupt);
 
 mongoc_stream_t *
 mongoc_client_connect(bool use_ssl,
@@ -225,7 +228,7 @@ mongoc_client_connect(bool use_ssl,
                       void *openssl_ctx_void,
                       mongoc_shared_ptr secure_channel_cred_ptr,
                       bson_error_t *error,
-                      int abort_fd);
+                      mongoc_interrupt_t *interrupt);
 
 
 /* Returns true if a versioned server API has been selected, otherwise returns

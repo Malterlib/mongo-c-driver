@@ -116,7 +116,8 @@ _mongoc_retryable_cmd_run(const mongoc_retryable_cmd_t *cmd, bson_t *reply, bson
       if (is_overload) {
          const mlib_duration backoff_duration =
             _mongoc_retry_backoff_generator_next(retry_backoff_generator, _get_base_backoff(reply));
-         mlib_sleep_for(backoff_duration);
+         // Cancellation leaves the next server selection to report the error
+         (void)_mongoc_interrupt_usleep(cmd->interrupt, mlib_microseconds_count(backoff_duration));
       } else {
          _mongoc_retry_backoff_generator_skip(retry_backoff_generator);
       }
