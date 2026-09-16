@@ -2511,7 +2511,7 @@ test_kms_tls_cert_valid(void *unused)
    ASSERT_OR_PRINT(_mongoc_host_list_from_string_with_err(&host, "127.0.0.1:9002", &error), error);
 #endif
 
-   base_stream = mongoc_client_connect_tcp(connecttimeoutms, &host, &error);
+   base_stream = mongoc_client_connect_tcp(connecttimeoutms, &host, &error, NULL);
    ASSERT_OR_PRINT(base_stream, error);
 
    ssl_opts = *test_framework_get_ssl_opts();

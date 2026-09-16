@@ -220,6 +220,7 @@ bool
 gcp_identity_token_from_gcp_server(gcp_service_account_token *out,
                                    const char *audience,
                                    mlib_timer opt_timer,
+                                   mongoc_interrupt_t *opt_interrupt,
                                    bson_error_t *error)
 {
    BSON_ASSERT_PARAM(out);
@@ -247,7 +248,7 @@ gcp_identity_token_from_gcp_server(gcp_service_account_token *out,
                          ? opt_timer
                          : mlib_expires_after(3, s); // Default 3 second timeout.
 
-   if (!_mongoc_http_send(&req.req, timer, false, NULL, &resp, error)) {
+   if (!_mongoc_http_send_interruptible(&req.req, timer, false, NULL, opt_interrupt, &resp, error)) {
       goto fail;
    }
 

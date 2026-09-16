@@ -19,6 +19,7 @@
 #ifndef MONGOC_RETRYABLE_CMD_PRIVATE_H
 #define MONGOC_RETRYABLE_CMD_PRIVATE_H
 
+#include <mongoc/mongoc-interrupt-private.h>
 #include <mongoc/mongoc-jitter-source-private.h>
 #include <mongoc/mongoc-server-stream-private.h>
 
@@ -45,6 +46,7 @@ typedef struct {
    mongoc_server_description_t const *initial_server_description;
    int32_t max_adaptive_retries;
    bool enable_overload_retargeting;
+   mongoc_interrupt_t *interrupt; // Cancels the backoff sleeps, NULL if the client has no cancellation channel
 } mongoc_retryable_cmd_t;
 
 bool

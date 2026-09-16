@@ -30,6 +30,7 @@ struct _mongoc_oidc_callback_params_t {
    char *username;
    int64_t timeout; // Guarded by timeout_is_set. In microseconds since monotonic clock start.
    int32_t version;
+   mongoc_interrupt_t *interrupt; // Optional, borrowed from the requesting client
    bool cancelled_with_timeout;
    bool timeout_is_set;
 };
@@ -138,6 +139,20 @@ mongoc_oidc_callback_params_set_user_data(mongoc_oidc_callback_params_t *params,
 {
    BSON_ASSERT_PARAM(params);
    params->user_data = user_data;
+}
+
+void
+mongoc_oidc_callback_params_set_interrupt(mongoc_oidc_callback_params_t *params, mongoc_interrupt_t *interrupt)
+{
+   BSON_ASSERT_PARAM(params);
+   params->interrupt = interrupt;
+}
+
+mongoc_interrupt_t *
+mongoc_oidc_callback_params_get_interrupt(const mongoc_oidc_callback_params_t *params)
+{
+   BSON_ASSERT_PARAM(params);
+   return params->interrupt;
 }
 
 const int64_t *

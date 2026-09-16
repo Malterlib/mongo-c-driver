@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <mongoc/mongoc-oidc-callback-private.h>
 #include <mongoc/mongoc-oidc-env-private.h>
 #include <mongoc/mongoc-util-private.h>
 
@@ -74,6 +75,7 @@ mongoc_oidc_env_fn_azure(mongoc_oidc_callback_params_t *params)
                                          NULL, // No extra headers
                                          timer,
                                          mongoc_oidc_callback_params_get_username(params), // Optional client id
+                                         mongoc_oidc_callback_params_get_interrupt(params),
                                          &error)) {
       MONGOC_ERROR("Failed to obtain Azure OIDC access token: %s", error.message);
       goto fail;
@@ -121,7 +123,8 @@ mongoc_oidc_env_fn_gcp(mongoc_oidc_callback_params_t *params)
       }
    }
 
-   if (!gcp_identity_token_from_gcp_server(&token, callback->token_resource, timer, &error)) {
+   if (!gcp_identity_token_from_gcp_server(
+          &token, callback->token_resource, timer, mongoc_oidc_callback_params_get_interrupt(params), &error)) {
       MONGOC_ERROR("Failed to obtain GCP OIDC access token: %s", error.message);
       goto fail;
    }

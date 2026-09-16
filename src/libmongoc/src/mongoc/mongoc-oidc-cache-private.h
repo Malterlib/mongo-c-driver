@@ -17,6 +17,8 @@
 #ifndef MONGOC_OIDC_CACHE_PRIVATE_H
 #define MONGOC_OIDC_CACHE_PRIVATE_H
 
+#include <mongoc/mongoc-interrupt-private.h>
+
 #include <mongoc/mongoc-oidc-callback.h>
 #include <mongoc/mongoc-sleep.h>
 
@@ -54,6 +56,13 @@ mongoc_oidc_cache_set_usleep_fn(mongoc_oidc_cache_t *cache, mongoc_usleep_func_t
 // Calls sleep if needed to enforce 100ms delay between calls to the callback.
 char *
 mongoc_oidc_cache_get_token(mongoc_oidc_cache_t *cache, bool *found_in_cache, bson_error_t *error);
+
+// mongoc_oidc_cache_get_token, with the built-in environment callbacks cancelled by @interrupt (optional)
+char *
+mongoc_oidc_cache_get_token_interruptible(mongoc_oidc_cache_t *cache,
+                                          mongoc_interrupt_t *interrupt,
+                                          bool *found_in_cache,
+                                          bson_error_t *error);
 
 // mongoc_oidc_cache_get_cached_token returns a cached token or NULL if none is cached. Thread safe.
 char *

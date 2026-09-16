@@ -635,7 +635,10 @@ _mongoc_client_get_rr(const char *hostname,
  */
 
 mongoc_stream_t *
-mongoc_client_connect_tcp(int32_t connecttimeoutms, const mongoc_host_list_t *host, bson_error_t *error, int abort_fd)
+mongoc_client_connect_tcp(int32_t connecttimeoutms,
+                          const mongoc_host_list_t *host,
+                          bson_error_t *error,
+                          mongoc_interrupt_t *interrupt)
 {
    mongoc_socket_t *sock = NULL;
    struct addrinfo hints;
@@ -676,7 +679,7 @@ mongoc_client_connect_tcp(int32_t connecttimeoutms, const mongoc_host_list_t *ho
       /*
        * Create a new non-blocking socket.
        */
-      if (!(sock = mongoc_socket_new(rp->ai_family, rp->ai_socktype, rp->ai_protocol, abort_fd))) {
+      if (!(sock = mongoc_socket_new(rp->ai_family, rp->ai_socktype, rp->ai_protocol, interrupt))) {
          continue;
       }
 
@@ -727,7 +730,7 @@ mongoc_client_connect_tcp(int32_t connecttimeoutms, const mongoc_host_list_t *ho
  */
 
 static mongoc_stream_t *
-mongoc_client_connect_unix(const mongoc_host_list_t *host, bson_error_t *error, int abort_fd)
+mongoc_client_connect_unix(const mongoc_host_list_t *host, bson_error_t *error, mongoc_interrupt_t *interrupt)
 {
 #ifdef _WIN32
    ENTRY;
@@ -755,7 +758,7 @@ mongoc_client_connect_unix(const mongoc_host_list_t *host, bson_error_t *error, 
       RETURN(NULL);
    }
 
-   sock = mongoc_socket_new(AF_UNIX, SOCK_STREAM, 0, abort_fd);
+   sock = mongoc_socket_new(AF_UNIX, SOCK_STREAM, 0, interrupt);
 
    if (sock == NULL) {
       _mongoc_set_error(error, MONGOC_ERROR_STREAM, MONGOC_ERROR_STREAM_SOCKET, "Failed to create socket.");
@@ -783,7 +786,7 @@ mongoc_client_connect(bool use_ssl,
                       void *openssl_ctx_void,
                       mongoc_shared_ptr secure_channel_cred_ptr,
                       bson_error_t *error,
-                      int abort_fd)
+                      mongoc_interrupt_t *interrupt)
 {
    mongoc_stream_t *base_stream = NULL;
    int32_t connecttimeoutms;
@@ -811,10 +814,10 @@ mongoc_client_connect(bool use_ssl,
    case AF_INET6:
 #endif
    case AF_INET:
-      base_stream = mongoc_client_connect_tcp(connecttimeoutms, host, error, abort_fd);
+      base_stream = mongoc_client_connect_tcp(connecttimeoutms, host, error, interrupt);
       break;
    case AF_UNIX:
-      base_stream = mongoc_client_connect_unix(host, error, abort_fd);
+      base_stream = mongoc_client_connect_unix(host, error, interrupt);
       break;
    default:
       _mongoc_set_error(error,
@@ -908,7 +911,7 @@ mongoc_client_default_stream_initiator(const mongoc_uri_t *uri,
 #if defined(MONGOC_ENABLE_SSL_OPENSSL) && OPENSSL_VERSION_NUMBER >= 0x10100000L
    SSL_CTX *ssl_ctx = client->topology->scanner->openssl_ctx;
    return mongoc_client_connect(
-      use_ssl, ssl_opts_void, uri, host, (void *)ssl_ctx, MONGOC_SHARED_PTR_NULL, error, client->abort_fd);
+      use_ssl, ssl_opts_void, uri, host, (void *)ssl_ctx, MONGOC_SHARED_PTR_NULL, error, client->interrupt);
 #elif defined(MONGOC_ENABLE_SSL_SECURE_CHANNEL)
    return mongoc_client_connect(use_ssl,
                                 ssl_opts_void,
@@ -917,10 +920,10 @@ mongoc_client_default_stream_initiator(const mongoc_uri_t *uri,
                                 NULL,
                                 client->topology->scanner->secure_channel_cred_ptr,
                                 error,
-                                client->abort_fd);
+                                client->interrupt);
 #else
    return mongoc_client_connect(
-      use_ssl, ssl_opts_void, uri, host, NULL, MONGOC_SHARED_PTR_NULL, error, client->abort_fd);
+      use_ssl, ssl_opts_void, uri, host, NULL, MONGOC_SHARED_PTR_NULL, error, client->interrupt);
 #endif
 }
 
@@ -956,36 +959,6 @@ _mongoc_client_create_stream(mongoc_client_t *client, const mongoc_host_list_t *
    return client->initiator(client->uri, host, client->initiator_data, error);
 }
 
-
-#ifndef _WIN32
-void
-alloc_abort_fd(int *abort_fd, int *abort_write_fd)
-{
-   int Pipes[2];
-#ifdef __linux__
-   if (pipe2(Pipes, O_CLOEXEC | O_NONBLOCK))
-      return;
-   else
-#endif
-   {
-      if (pipe(Pipes))
-         return;
-
-      fcntl(Pipes[0], F_SETFD, fcntl(Pipes[0], F_GETFD) | FD_CLOEXEC);
-      fcntl(Pipes[1], F_SETFD, fcntl(Pipes[1], F_GETFD) | FD_CLOEXEC);
-      fcntl(Pipes[0], F_SETFL, fcntl(Pipes[0], F_GETFL) | O_NONBLOCK);
-      fcntl(Pipes[1], F_SETFL, fcntl(Pipes[1], F_GETFL) | O_NONBLOCK);
-   }
-
-#ifdef F_SETNOSIGPIPE
-   fcntl(Pipes[0], F_SETNOSIGPIPE, 1);
-   fcntl(Pipes[1], F_SETNOSIGPIPE, 1);
-#endif
-
-   *abort_fd = Pipes[0];
-   *abort_write_fd = Pipes[1];
-}
-#endif
 
 mongoc_client_t *
 mongoc_client_new(const char *uri_string)
@@ -1134,13 +1107,14 @@ mongoc_client_new_from_uri_with_error(const mongoc_uri_t *uri, bson_error_t *err
    }
 #endif
 
-   int abort_fd = -1;
-   int abort_write_fd = -1;
-#ifndef _WIN32
-   alloc_abort_fd(&abort_fd, &abort_write_fd);
-#endif
+   mongoc_interrupt_t *interrupt = _mongoc_interrupt_new(10000);
+   if (!interrupt) {
+      _mongoc_set_error(
+         error, MONGOC_ERROR_STREAM, MONGOC_ERROR_STREAM_SOCKET, "Could not create the client cancellation channel");
+      RETURN(NULL);
+   }
 
-   topology = mongoc_topology_new(uri, true, abort_fd);
+   topology = mongoc_topology_new(uri, true, interrupt);
 
    if (!topology->valid) {
       if (error) {
@@ -1149,17 +1123,12 @@ mongoc_client_new_from_uri_with_error(const mongoc_uri_t *uri, bson_error_t *err
 
       mongoc_topology_destroy(topology);
 
-#ifndef _WIN32
-      if (abort_fd >= 0)
-         close(abort_fd);
-      if (abort_write_fd >= 0)
-         close(abort_write_fd);
-#endif
+      _mongoc_interrupt_destroy(interrupt);
 
       RETURN(NULL);
    }
 
-   client = _mongoc_client_new_from_topology(topology, abort_fd, abort_write_fd);
+   client = _mongoc_client_new_from_topology(topology, interrupt);
    BSON_ASSERT(client);
 
    RETURN(client);
@@ -1167,7 +1136,7 @@ mongoc_client_new_from_uri_with_error(const mongoc_uri_t *uri, bson_error_t *err
 
 /* precondition: topology is valid */
 mongoc_client_t *
-_mongoc_client_new_from_topology(mongoc_topology_t *topology, int abort_fd, int abort_write_fd)
+_mongoc_client_new_from_topology(mongoc_topology_t *topology, mongoc_interrupt_t *interrupt)
 {
    mongoc_client_t *client;
    const mongoc_read_prefs_t *read_prefs;
@@ -1191,8 +1160,7 @@ _mongoc_client_new_from_topology(mongoc_topology_t *topology, int abort_fd, int 
    client->max_adaptive_retries = _mongoc_uri_get_max_adaptive_retries(client->uri);
    client->enable_overload_retargeting = mongoc_uri_get_option_as_bool(
       client->uri, MONGOC_URI_ENABLEOVERLOADRETARGETING, MONGOC_DEFAULT_ENABLEOVERLOADRETARGETING);
-   client->abort_fd = abort_fd;
-   client->abort_write_fd = abort_write_fd;
+   client->interrupt = interrupt;
 
    write_concern = mongoc_uri_get_write_concern(client->uri);
    client->write_concern = mongoc_write_concern_copy(write_concern);
@@ -1274,10 +1242,7 @@ mongoc_client_destroy(mongoc_client_t *client)
       _mongoc_ssl_opts_cleanup(&client->ssl_opts, true);
 #endif
 
-      if (client->abort_fd >= 0)
-         close(client->abort_fd);
-      if (client->abort_write_fd >= 0)
-         close(client->abort_write_fd);
+      _mongoc_interrupt_destroy(client->interrupt);
 
       bson_free(client);
 
@@ -1291,7 +1256,10 @@ mongoc_client_destroy(mongoc_client_t *client)
  *
  * mongoc_client_abort --
  *
- *       Aborts the client connection so threads waiting for IO can exit
+ *       Permanently cancels standalone client socket operations and wakes IO
+ *       waits. May run concurrently with an operation; the client must remain
+ *       alive until this call and all operations have returned. Pooled clients
+ *       must be idle and have their connections closed synchronously.
  *
  * Returns:
  *       None.
@@ -1306,14 +1274,13 @@ void
 mongoc_client_abort(mongoc_client_t *client)
 {
    if (client) {
-      if (client->topology->single_threaded) {
-         mongoc_topology_abort(client->topology);
+      if (client->interrupt) {
+         /* Standalone clients retain this channel until all operations stop. */
+         _mongoc_interrupt_cancel(client->interrupt);
+         return;
       }
+      /* Pooled clients have no dedicated channel and must be idle here. */
       mongoc_cluster_abort(&client->cluster);
-      if (client->abort_write_fd >= 0) {
-         uint8_t ToWrite[1] = {1};
-         write(client->abort_write_fd, ToWrite, 1);
-      }
    }
 }
 
@@ -1855,6 +1822,7 @@ _mongoc_client_retryable_read_command_with_stream(mongoc_client_t *client,
       .initial_server_description = server_stream->sd,
       .max_adaptive_retries = client->max_adaptive_retries,
       .enable_overload_retargeting = client->enable_overload_retargeting,
+      .interrupt = client->interrupt,
    };
 
    const bool ret = _mongoc_retryable_cmd_run(&retryable_cmd, reply, error);
