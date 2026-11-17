@@ -44,6 +44,8 @@
 #include <winnt.h>
 
 #include <windows.h>
+// NTSTATUS, which only the native TLS and crypto backends include otherwise
+#include <winternl.h>
 #endif
 
 #include <limits.h>
