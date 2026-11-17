@@ -23,6 +23,8 @@
 
 #ifdef _WIN32
 #include <windows.h>
+// NTSTATUS, which only the native TLS and crypto backends include otherwise
+#include <winternl.h>
 #endif
 
 #include <common-bson-dsl-private.h>
