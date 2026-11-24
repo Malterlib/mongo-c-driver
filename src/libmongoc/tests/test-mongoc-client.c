@@ -2735,11 +2735,7 @@ _test_ssl_reconnect(bool pooled)
    /* network timeout */
    capture_logs(true);
    ASSERT(!_cmd(server, client, false /* server hangs up */, &error));
-   if (pooled) {
-      ASSERT_CAPTURED_LOG("failed to write data because server closed the connection",
-                          MONGOC_LOG_LEVEL_WARNING,
-                          "Failed to buffer 4 bytes");
-   }
+   ASSERT_ERROR_CONTAINS(error, MONGOC_ERROR_STREAM, MONGOC_ERROR_STREAM_SOCKET, "Failed to read 4 bytes");
    capture_logs(false);
 
    /* next operation comes on a new connection, server verification fails */

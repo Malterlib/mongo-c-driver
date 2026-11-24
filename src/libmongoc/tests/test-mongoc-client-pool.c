@@ -646,8 +646,7 @@ test_client_pool_install(TestSuite *suite)
       test_framework_skip_if_max_wire_version_less_than_9 /* require server 4.4+ for streaming monitoring protocol */);
 
 #if defined(MONGOC_ENABLE_SSL_OPENSSL)
-   TestSuite_Add(
-      suite, "/ClientPool/openssl/change_ssl_opts [lock:live-server]", test_mongoc_client_pool_change_openssl_ctx);
+   TestSuite_AddLive(suite, "/ClientPool/openssl/change_ssl_opts", test_mongoc_client_pool_change_openssl_ctx);
 #endif
 
 #if defined(MONGOC_ENABLE_SSL)
